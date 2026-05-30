@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MathiFun</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div id="app" v-cloak>
+      <main class="app-shell">
+        <section v-if="loading" class="panel centered">
+          <div class="mascot">★</div>
+          <h1>MathiFun</h1>
+          <p>{{ copy.loading }}</p>
+        </section>
+
+        <section v-else-if="view === 'login'" class="panel login-panel">
+          <div class="brand-row">
+            <div class="brand-identity">
+              <div class="mascot">★</div>
+              <div>
+                <p class="eyebrow">{{ copy.brandEyebrow }}</p>
+                <h1>MathiFun</h1>
+              </div>
+            </div>
+            <label class="language-select">
+              <span>{{ copy.languageLabel }}</span>
+              <select v-model="language" @change="saveLanguage">
+                <option v-for="item in languages" :key="item.code" :value="item.code">{{ item.label }}</option>
+              </select>
+            </label>
+          </div>
+
+          <form class="create-user" @submit.prevent="createUser">
+            <label for="new-user">{{ copy.createPlayer }}</label>
+            <div class="inline-form">
+              <input id="new-user" v-model.trim="newUserName" maxlength="24" :placeholder="copy.playerPlaceholder">
+              <button type="submit">{{ copy.addPlayer }}</button>
+            </div>
+            <p v-if="userMessage" class="notice">{{ userMessage }}</p>
+          </form>
+
+          <div class="user-list" v-if="users.length">
+            <h2>{{ copy.chooseProfile }}</h2>
+            <article v-for="user in users" :key="user.id" class="user-card">
+              <button class="user-select" type="button" @click="selectUser(user.id)">
+                <span class="avatar">{{ initials(user.name) }}</span>
+                <span>
+                  <strong>{{ user.name }}</strong>
+                  <small>{{ copy.gamesPlayed(userResultCount(user.id)) }}</small>
+                </span>
+              </button>
+              <button class="danger ghost" type="button" @click="askDeleteUser(user)">{{ copy.delete }}</button>
+            </article>
+          </div>
+
+          <div v-else class="empty-state">
+            <h2>{{ copy.welcome }}</h2>
+            <p>{{ copy.createFirstPlayer }}</p>
+          </div>
+
+          <div v-if="deleteTarget" class="modal-backdrop" @click.self="cancelDelete">
+            <div class="modal">
+              <h2>{{ copy.deletePlayerTitle(deleteTarget.name) }}</h2>
+              <p>{{ copy.deletePlayerText }}</p>
+              <div class="modal-actions">
+                <button class="ghost" type="button" @click="cancelDelete">{{ copy.cancel }}</button>
+                <button class="danger" type="button" @click="confirmDeleteUser">{{ copy.confirmDelete }}</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section v-else-if="view === 'home'" class="dashboard">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">{{ copy.activeProfile }}</p>
+              <h1>{{ copy.greeting(currentUser.name) }}</h1>
+            </div>
+            <div class="topbar-actions">
+              <button class="ghost" type="button" @click="goLogin">{{ copy.changePlayer }}</button>
+              <label class="language-select compact-language">
+                <span>{{ copy.languageLabel }}</span>
+                <select v-model="language" @change="saveLanguage">
+                  <option v-for="item in languages" :key="item.code" :value="item.code">{{ item.label }}</option>
+                </select>
+              </label>
+            </div>
+          </header>
+
+          <div class="hero-band">
+            <div>
+              <p class="eyebrow">{{ copy.dailyMission }}</p>
+              <h2>{{ copy.heroTitle }}</h2>
+              <p>{{ copy.heroText }}</p>
+            </div>
+            <div class="hero-score">
+              <strong>{{ totalStars }}</strong>
+              <span>{{ copy.starsEarned }}</span>
+            </div>
+          </div>
+
+          <div class="grid two-columns">
+            <article class="panel">
+              <h2>{{ copy.chooseOperation }}</h2>
+              <div class="operation-grid">
+                <button
+                  v-for="operation in operations"
+                  :key="operation.id"
+                  type="button"
+                  :class="['choice-card', { selected: setup.operation === operation.id }]"
+                  @click="setOperation(operation.id)"
+                >
+                  <span class="choice-icon">{{ operation.icon }}</span>
+                  <strong>{{ operation.label }}</strong>
+                  <small>{{ operation.help }}</small>
+                </button>
+              </div>
+            </article>
+
+            <article class="panel">
+              <h2>{{ copy.gameMode }}</h2>
+              <div class="mode-list">
+                <button
+                  v-for="mode in modes"
+                  :key="mode.id"
+                  type="button"
+                  :class="['mode-card', { selected: setup.mode === mode.id }]"
+                  @click="setMode(mode.id)"
+                >
+                  <span>{{ mode.icon }}</span>
+                  <span>
+                    <strong>{{ mode.label }}</strong>
+                    <small>{{ mode.description }}</small>
+                  </span>
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <div class="grid two-columns">
+            <article class="panel">
+              <h2>{{ copy.settings }}</h2>
+              <div class="settings-list">
+                <div class="setting-row number-setting">
+                  <label for="range-min">{{ copy.minimum }}</label>
+                  <input
+                    id="range-min"
+                    type="number"
+                    :min="rangeLowerBound"
+                    step="1"
+                    v-model.number="setup.rangeMin"
+                    @input="normalizeRange"
+                    @change="normalizeRange"
+                  >
+                </div>
+                <div class="setting-row number-setting">
+                  <label for="range-max">{{ copy.maximum }}</label>
+                  <input
+                    id="range-max"
+                    type="number"
+                    :min="rangeLowerBound"
+                    step="1"
+                    v-model.number="setup.rangeMax"
+                    @input="normalizeRange"
+                    @change="normalizeRange"
+                  >
+                </div>
+                <div :class="['setting-row', 'compact', { disabled: timeSettingDisabled }]">
+                  <label for="time-limit">{{ copy.time }}</label>
+                  <select id="time-limit" v-model.number="setup.timeLimit" :disabled="timeSettingDisabled">
+                    <option :value="30">{{ copy.seconds(30) }}</option>
+                    <option :value="45">{{ copy.seconds(45) }}</option>
+                    <option :value="60">{{ copy.seconds(60) }}</option>
+                    <option :value="90">{{ copy.seconds(90) }}</option>
+                  </select>
+                </div>
+                <div :class="['setting-row', 'compact', { disabled: questionSettingDisabled }]">
+                  <label for="question-count">{{ copy.questions }}</label>
+                  <select id="question-count" v-model.number="setup.questionCount" :disabled="questionSettingDisabled">
+                    <option :value="10">{{ copy.questionCount(10) }}</option>
+                    <option :value="15">{{ copy.questionCount(15) }}</option>
+                    <option :value="20">{{ copy.questionCount(20) }}</option>
+                  </select>
+                </div>
+              </div>
+              <p class="range-help">{{ rangeHelpText }}</p>
+              <button class="primary start-button" type="button" @click="startGame">{{ copy.start }}</button>
+            </article>
+
+            <article class="panel scoreboard">
+              <h2>{{ copy.scoreboard }}</h2>
+              <div v-if="bestScores.length" class="score-list">
+                <div v-for="score in bestScores" :key="score.key" class="score-row">
+                  <span>{{ score.label }}</span>
+                  <strong>{{ score.score }} {{ copy.pointsShort }}</strong>
+                </div>
+              </div>
+              <p v-else class="muted">{{ copy.noScore }}</p>
+
+              <h3>{{ copy.recentGames }}</h3>
+              <div v-if="recentResults.length" class="history-list">
+                <div v-for="result in recentResults" :key="result.id" class="history-row">
+                  <span>{{ operationLabel(result.operation) }} - {{ modeLabel(result.mode) }}</span>
+                  <strong>{{ result.score }} {{ copy.pointsShort }}</strong>
+                  <small>{{ formatDate(result.createdAt) }}</small>
+                </div>
+              </div>
+              <p v-else class="muted">{{ copy.playToFillHistory }}</p>
+
+              <h3>{{ copy.review }}</h3>
+              <div v-if="operationMistakes.length" class="mistake-list">
+                <div v-for="mistake in operationMistakes" :key="mistake.id" class="mistake-row">
+                  <strong>{{ mistake.text }}</strong>
+                  <span>{{ copy.errors(mistake.wrongCount) }}</span>
+                </div>
+              </div>
+              <p v-else class="muted">{{ copy.noReview(operationLabel(setup.operation)) }}</p>
+            </article>
+          </div>
+        </section>
+
+        <section v-else-if="view === 'game'" class="game-screen">
+          <header class="game-header">
+            <button class="ghost" type="button" @click="quitGame">{{ copy.quit }}</button>
+            <div class="pill">{{ copy.score }} : {{ game.score }}</div>
+            <div class="pill">{{ copy.streak }} : {{ game.streak }}</div>
+            <div v-if="activeMode.timed" class="pill timer">{{ copy.time }} : {{ game.timeLeft }}s</div>
+            <div v-else class="pill">{{ copy.calm }}</div>
+          </header>
+
+          <article class="question-panel">
+            <p class="eyebrow">{{ operationLabel(setup.operation) }} - {{ activeMode.label }}</p>
+            <p v-if="currentQuestion.remembered" class="review-chip">{{ copy.reviewQuestion }}</p>
+            <div class="question">{{ currentQuestion.text }}</div>
+            <form class="answer-form" @submit.prevent="submitAnswer">
+              <input ref="answerInput" v-model="answerText" inputmode="numeric" pattern="-?[0-9]*" autocomplete="off" :aria-label="copy.answerAria">
+              <button class="primary" type="submit">{{ copy.validate }}</button>
+            </form>
+            <p :class="['feedback', game.feedbackType]">{{ game.feedback }}</p>
+          </article>
+
+          <footer class="game-footer">
+            <div class="progress-track">
+              <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+            </div>
+            <span>{{ copy.correctProgress(game.correct, game.total) }}</span>
+          </footer>
+        </section>
+
+        <section v-else-if="view === 'results'" class="panel results-panel">
+          <div class="medal">{{ medal }}</div>
+          <p class="eyebrow">{{ copy.resultOf(currentUser.name) }}</p>
+          <h1>{{ resultTitle }}</h1>
+          <div class="result-grid">
+            <div>
+              <strong>{{ lastResult.score }}</strong>
+              <span>{{ copy.points }}</span>
+            </div>
+            <div>
+              <strong>{{ lastResult.correct }}/{{ lastResult.total }}</strong>
+              <span>{{ copy.correctAnswers }}</span>
+            </div>
+            <div>
+              <strong>{{ resultAccuracy }}%</strong>
+              <span>{{ copy.successRate }}</span>
+            </div>
+          </div>
+          <p class="notice">{{ bestScoreMessage }}</p>
+          <div class="result-actions">
+            <button class="primary" type="button" @click="startGame">{{ copy.playAgain }}</button>
+            <button class="ghost" type="button" @click="goHome">{{ copy.backToMenu }}</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
