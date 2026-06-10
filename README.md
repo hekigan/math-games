@@ -6,6 +6,9 @@ MathiFun is a static browser game that helps primary school children practice ar
 
 The app is designed to make arithmetic practice approachable for children while keeping each player's progress separate. It supports multiple local player profiles, stores results in the browser, and offers several game modes for quick challenges or calmer practice.
 
+<img width="1233" height="1563" alt="image" src="https://github.com/user-attachments/assets/dbdfa367-8ec2-4521-928b-fe0050e4d3a5" />
+
+
 ## Features
 
 - Bilingual interface in English and French.
