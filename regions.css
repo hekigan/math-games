@@ -121,3 +121,6 @@ button { font: inherit; cursor: pointer; }
   display: grid; place-items: center; font-weight: 700;
 }
 .score-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+.labels { pointer-events: none; font-weight: 700; fill: var(--ink); }
+.labels text { paint-order: stroke; stroke: rgba(255, 255, 255, .85); stroke-width: 4px; stroke-linejoin: round; }

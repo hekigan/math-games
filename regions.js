@@ -73,6 +73,62 @@
     pathEls[r.id] = p;
   });
 
+  // --- Noms sur la carte (visibles avant le début de la partie) ---
+  // Centre de gravité du plus grand polygone du tracé SVG
+  function labelPoint(d) {
+    var best = null;
+    d.split('Z').forEach(function (sub) {
+      var nums = sub.replace(/[ML]/g, ' ').trim().split(/\s+/).map(Number);
+      if (nums.length < 6) return;
+      var pts = [];
+      for (var i = 0; i < nums.length; i += 2) pts.push([nums[i], nums[i + 1]]);
+      var A = 0, cx = 0, cy = 0;
+      for (var j = 0; j < pts.length; j++) {
+        var p = pts[j], q = pts[(j + 1) % pts.length];
+        var c = p[0] * q[1] - q[0] * p[1];
+        A += c; cx += (p[0] + q[0]) * c; cy += (p[1] + q[1]) * c;
+      }
+      if (!best || Math.abs(A) > best.area) best = { area: Math.abs(A), x: cx / (3 * A), y: cy / (3 * A) };
+    });
+    return best;
+  }
+  // Réglages à la main pour les régions où le centre de gravité tombe mal : décalage (dx, dy) et taille du texte
+  var LABEL_TWEAKS = {
+    'Île-de-France': { size: 13 },
+    'Corse': { dx: -60, dy: 0, anchor: 'end' }
+  };
+  var LABEL_LINES = {
+    'Hauts-de-France': ['Hauts-de-', 'France'],
+    'Pays de la Loire': ['Pays de', 'la Loire'],
+    'Centre-Val de Loire': ['Centre-', 'Val de Loire'],
+    'Bourgogne-Franche-Comté': ['Bourgogne-', 'Franche-Comté'],
+    'Auvergne-Rhône-Alpes': ['Auvergne-', 'Rhône-Alpes'],
+    'Nouvelle-Aquitaine': ['Nouvelle-', 'Aquitaine'],
+    "Provence-Alpes-Côte d'Azur": ['Provence-', 'Alpes-Côte', "d'Azur"]
+  };
+  var labelsEl = document.createElementNS(SVGNS, 'g');
+  labelsEl.setAttribute('class', 'labels');
+  regions.forEach(function (r) {
+    var pt = labelPoint(r.d);
+    var tw = LABEL_TWEAKS[r.name] || {};
+    var lines = LABEL_LINES[r.name] || [r.name];
+    var t = document.createElementNS(SVGNS, 'text');
+    t.setAttribute('x', pt.x + (tw.dx || 0));
+    t.setAttribute('y', pt.y + (tw.dy || 0) - (lines.length - 1) * 0.5 * (tw.size || 21) * 1.05);
+    t.setAttribute('text-anchor', tw.anchor || 'middle');
+    t.setAttribute('font-size', tw.size || 21);
+    lines.forEach(function (line, i) {
+      var ts = document.createElementNS(SVGNS, 'tspan');
+      ts.setAttribute('x', pt.x + (tw.dx || 0));
+      ts.setAttribute('dy', i === 0 ? 0 : (tw.size || 21) * 1.05);
+      ts.textContent = line.trim();
+      t.appendChild(ts);
+    });
+    labelsEl.appendChild(t);
+  });
+  map.appendChild(labelsEl);
+  function showLabels(on) { labelsEl.style.display = on ? '' : 'none'; }
+
   // --- Liste de choix (ordre alphabétique comme sur la fiche) ---
   var choicesEl = $('choices');
   var buttons = {};
@@ -191,6 +247,7 @@
       buttons[r.id].className = 'choice';
       buttons[r.id].disabled = false;
     });
+    showLabels(false);
     $('win').hidden = true;
     $('win-missed').hidden = true;
     $('start').textContent = 'Recommencer';
@@ -237,6 +294,7 @@
     });
     $('win').hidden = true;
     $('win-missed').hidden = true;
+    showLabels(true);
     $('timer').textContent = '0:00';
     $('start').textContent = 'Commencer';
     setHint('Appuie sur « Commencer ».');
@@ -286,6 +344,7 @@
     var p = currentUser().name;
     var rank = addScore({ found: regions.length, time: time, errors: state.errors, date: Date.now() });
     renderPlayers();
+    showLabels(true); // victoire : on peut relire les noms
     setHint('Terminé !');
     $('again').textContent = 'Rejouer';
     $('win-missed').hidden = true;
