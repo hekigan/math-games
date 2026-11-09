@@ -86,6 +86,7 @@ button { font: inherit; cursor: pointer; }
 .scores ol { margin: 0; padding-left: 22px; }
 .scores li { margin: 2px 0; }
 .scores li.empty { list-style: none; color: var(--muted); margin-left: -22px; }
+.scores li.perfect strong { color: #1a9a52; }
 .scores li small { color: var(--muted); }
 
 .win { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(35, 48, 71, .55); padding: 16px; }
@@ -99,3 +100,5 @@ button { font: inherit; cursor: pointer; }
   .choice { padding: 10px 8px; font-size: .9rem; }
   .top h1 { flex-basis: 100%; order: 3; font-size: 1.25rem; }
 }
+
+.scores .rule { margin: 0 0 6px; color: var(--muted); font-size: .85rem; }

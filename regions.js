@@ -78,6 +78,22 @@
     $('giveup').disabled = !state.running;
   }
 
+  // Anciennes parties (avant l'ajout du nombre de régions) : toujours des victoires
+  function foundOf(s) { return typeof s.found === 'number' ? s.found : regions.length; }
+
+  // Classement : plus de régions trouvées d'abord, puis temps le plus court, puis moins d'erreurs
+  function addScore(entry) {
+    var p = state.store.player;
+    var list = state.store.scores[p];
+    list.push(entry);
+    list.sort(function (a, b) { return foundOf(b) - foundOf(a) || a.time - b.time || a.errors - b.errors; });
+    var rank = list.indexOf(entry);
+    state.store.scores[p] = list.slice(0, MAX_SCORES);
+    save();
+    renderScores();
+    return rank;
+  }
+
   function renderScores() {
     PLAYERS.forEach(function (p) {
       var ol = $('scores-' + p);
@@ -92,9 +108,11 @@
       }
       list.forEach(function (s) {
         var li = document.createElement('li');
+        var n = foundOf(s);
         li.innerHTML = '<strong></strong> <small></small>';
-        li.firstChild.textContent = fmt(s.time);
-        li.lastChild.textContent = '— ' + s.errors + (s.errors > 1 ? ' erreurs' : ' erreur');
+        li.firstChild.textContent = n + ' / ' + regions.length + ' régions — ' + fmt(s.time);
+        li.lastChild.textContent = '(' + s.errors + (s.errors > 1 ? ' erreurs)' : ' erreur)');
+        if (n === regions.length) li.classList.add('perfect');
         ol.appendChild(li);
       });
     });
@@ -192,13 +210,22 @@
     pathEls[state.current].classList.add('missed'); // reste visible sur la carte
     clearInterval(state.ticker);
     state.running = false;
+    var nFound = Object.keys(state.found).length;
+    var time = Date.now() - state.startedAt;
+    $('timer').textContent = fmt(time);
+    var recorded = false;
+    if (nFound > 0) {
+      addScore({ found: nFound, time: time, errors: state.errors, date: Date.now() });
+      recorded = true;
+    }
     regions.forEach(function (r) { buttons[r.id].disabled = true; });
     renderPlayers();
     setHint('C\u2019était : ' + missed.name);
     $('win-title').textContent = 'Perdu, ' + state.store.player + ' !';
     $('win-text').textContent = 'Tu as fait 3 erreurs. Tu avais trouvé ' +
       Object.keys(state.found).length + ' région' + (Object.keys(state.found).length > 1 ? 's' : '') +
-      ' sur ' + regions.length + '.';
+      ' sur ' + regions.length + ' en ' + fmt(time) + '.' +
+      (recorded ? ' Score enregistré.' : '');
     $('win-missed').textContent = 'La région à trouver était : ' + missed.name;
     $('win-missed').hidden = false;
     $('again').textContent = 'Recommencer';
@@ -211,14 +238,8 @@
     var time = Date.now() - state.startedAt;
     $('timer').textContent = fmt(time);
     var p = state.store.player;
-    var list = state.store.scores[p];
-    var entry = { time: time, errors: state.errors, date: Date.now() };
-    list.push(entry);
-    list.sort(function (a, b) { return a.time - b.time || a.errors - b.errors; });
-    var rank = list.indexOf(entry);
-    state.store.scores[p] = list.slice(0, MAX_SCORES);
-    save();
-    renderScores(); renderPlayers();
+    var rank = addScore({ found: regions.length, time: time, errors: state.errors, date: Date.now() });
+    renderPlayers();
     setHint('Terminé !');
     $('again').textContent = 'Rejouer';
     $('win-missed').hidden = true;
