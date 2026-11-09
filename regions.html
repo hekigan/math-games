@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Les régions de France</title>
+    <link rel="stylesheet" href="regions.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="top">
+        <a class="back" href="index.html">← MathiFun</a>
+        <h1>Les 13 régions de France</h1>
+        <div class="players" role="group" aria-label="Joueur">
+          <button type="button" class="player" data-player="Alain">Alain</button>
+          <button type="button" class="player" data-player="Emma">Emma</button>
+        </div>
+      </header>
+
+      <section class="status">
+        <div class="stat"><span>Temps</span><strong id="timer">0:00</strong></div>
+        <div class="stat"><span>Trouvées</span><strong id="progress">0 / 13</strong></div>
+        <div class="stat"><span>Erreurs</span><strong id="errors">0</strong></div>
+        <button type="button" id="start" class="primary">Commencer</button>
+      </section>
+
+      <section class="board">
+        <div class="map-wrap">
+          <svg id="map" viewBox="0 0 1030 1010" role="img" aria-label="Carte des régions de France métropolitaine"></svg>
+          <p class="hint" id="hint">Choisis ton nom puis appuie sur « Commencer ».</p>
+        </div>
+        <div class="choices" id="choices" aria-label="Liste des régions"></div>
+      </section>
+
+      <section class="scores">
+        <h2>Meilleurs temps</h2>
+        <div class="score-cols">
+          <div><h3>Alain</h3><ol id="scores-Alain"></ol></div>
+          <div><h3>Emma</h3><ol id="scores-Emma"></ol></div>
+        </div>
+      </section>
+
+      <div id="win" class="win" hidden>
+        <div class="win-card">
+          <h2 id="win-title">Bravo !</h2>
+          <p id="win-text"></p>
+          <button type="button" id="again" class="primary">Rejouer</button>
+        </div>
+      </div>
+    </main>
+    <script src="regions-data.js"></script>
+    <script src="regions.js"></script>
+  </body>
+</html>
