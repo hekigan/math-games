@@ -11,12 +11,27 @@
       <header class="top">
         <a class="back" href="index.html">← MathiFun</a>
         <h1>Les 13 régions de France</h1>
-        <div class="players" role="group" aria-label="Joueur">
-          <button type="button" class="player" data-player="Alain">Alain</button>
-          <button type="button" class="player" data-player="Emma">Emma</button>
+        <div class="who-box" id="who-box" hidden>
+          <span>Joueur : <strong id="who"></strong></span>
+          <button type="button" id="switch" class="player">Changer de joueur</button>
         </div>
       </header>
 
+      <section class="login" id="login" hidden>
+        <form id="create-user" class="create-user">
+          <label for="new-user">Créer un joueur</label>
+          <div class="inline-form">
+            <input id="new-user" maxlength="24" placeholder="Prénom du joueur" autocomplete="off">
+            <button type="submit" class="primary">Ajouter</button>
+          </div>
+          <p id="login-msg" class="notice" role="status"></p>
+        </form>
+        <h2 id="user-title" hidden>Choisis ton profil</h2>
+        <p id="no-user" class="notice" hidden>Aucun joueur pour l’instant : crée le premier !</p>
+        <div id="user-list" class="user-list"></div>
+      </section>
+
+      <div id="game" hidden>
       <section class="status">
         <div class="stat"><span>Temps</span><strong id="timer">0:00</strong></div>
         <div class="stat"><span>Trouvées</span><strong id="progress">0 / 13</strong></div>
@@ -28,7 +43,7 @@
       <section class="board">
         <div class="map-wrap">
           <svg id="map" viewBox="0 0 1030 1010" role="img" aria-label="Carte des régions de France métropolitaine"></svg>
-          <p class="hint" id="hint">Choisis ton nom puis appuie sur « Commencer ».</p>
+          <p class="hint" id="hint">Appuie sur « Commencer ».</p>
         </div>
         <div class="choices" id="choices" aria-label="Liste des régions"></div>
       </section>
@@ -36,11 +51,9 @@
       <section class="scores">
         <h2>Meilleurs scores</h2>
         <p class="rule">Classement : plus de régions trouvées, puis temps le plus court.</p>
-        <div class="score-cols">
-          <div><h3>Alain</h3><ol id="scores-Alain"></ol></div>
-          <div><h3>Emma</h3><ol id="scores-Emma"></ol></div>
-        </div>
+        <div class="score-cols" id="score-cols"></div>
       </section>
+      </div>
 
       <div id="win" class="win" hidden>
         <div class="win-card">

@@ -1,8 +1,11 @@
 (function () {
   'use strict';
 
-  var PLAYERS = ['Alain', 'Emma'];
-  var STORE_KEY = 'mathifun-regions-v1'; // { player, scores: { Alain: [...], Emma: [...] } }
+  // Même base IndexedDB et mêmes profils que la page de mathématiques (app.js).
+  // Les scores des régions sont rangés dans le magasin « appState » (clé « regionsScores »),
+  // ce qui évite de changer la version du schéma partagé.
+  var DB_NAME = 'mathifun-db';
+  var DB_VERSION = 2;
   var MAX_SCORES = 5;
   var MAX_ERRORS = 3;
   var SVGNS = 'http://www.w3.org/2000/svg';
@@ -10,25 +13,54 @@
   var regions = window.REGIONS;
   var $ = function (id) { return document.getElementById(id); };
 
-  // --- Stockage local (jamais d'erreur bloquante si indisponible) ---
-  function load() {
-    try {
-      var data = JSON.parse(localStorage.getItem(STORE_KEY));
-      if (data && data.scores) return data;
-    } catch (e) { /* ignore */ }
-    return { player: PLAYERS[0], scores: { Alain: [], Emma: [] } };
+  function openDatabase() {
+    return new Promise(function (resolve, reject) {
+      var request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = function () { // identique à app.js, au cas où cette page s'ouvre en premier
+        var db = request.result;
+        if (!db.objectStoreNames.contains('users')) db.createObjectStore('users', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('results')) {
+          db.createObjectStore('results', { keyPath: 'id' }).createIndex('userId', 'userId', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('appState')) db.createObjectStore('appState', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('mistakes')) {
+          db.createObjectStore('mistakes', { keyPath: 'id' }).createIndex('userId', 'userId', { unique: false });
+        }
+      };
+      request.onsuccess = function () { resolve(request.result); };
+      request.onerror = function () { reject(request.error); };
+    });
   }
-  function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state.store)); } catch (e) { /* ignore */ }
+  function req(r) {
+    return new Promise(function (resolve, reject) {
+      r.onsuccess = function () { resolve(r.result); };
+      r.onerror = function () { reject(r.error); };
+    });
+  }
+  function store(name, mode) { return state.db.transaction(name, mode).objectStore(name); }
+  // Si IndexedDB est indisponible (navigation privée, aperçu…), on joue quand même, sans sauvegarde durable
+  var memory = {};
+  function getState(key) {
+    if (!state.db) return Promise.resolve(memory[key] === undefined ? null : memory[key]);
+    return req(store('appState', 'readonly').get(key)).then(function (x) { return x ? x.value : null; });
+  }
+  function setState(key, value) {
+    if (!state.db) { memory[key] = JSON.parse(JSON.stringify(value)); return Promise.resolve(); }
+    return req(store('appState', 'readwrite').put({ key: key, value: JSON.parse(JSON.stringify(value)) }));
+  }
+  function uid(prefix) {
+    if (window.crypto && crypto.randomUUID) return prefix + '-' + crypto.randomUUID();
+    return prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2);
   }
 
   var state = {
-    store: load(),
+    db: null, users: [], userId: null, scores: {}, // scores : { idUtilisateur: [ {found,time,errors,date} ] }
     queue: [], current: null, found: {}, errors: 0,
     startedAt: 0, ticker: null, running: false, locked: false
   };
-  PLAYERS.forEach(function (p) { if (!state.store.scores[p]) state.store.scores[p] = []; });
-  if (PLAYERS.indexOf(state.store.player) < 0) state.store.player = PLAYERS[0];
+  function currentUser() {
+    return state.users.filter(function (u) { return u.id === state.userId; })[0] || null;
+  }
 
   // --- Carte ---
   var map = $('map');
@@ -71,10 +103,9 @@
   function setHint(t) { $('hint').textContent = t; }
 
   function renderPlayers() {
-    Array.prototype.forEach.call(document.querySelectorAll('.player'), function (b) {
-      b.classList.toggle('active', b.getAttribute('data-player') === state.store.player);
-      b.disabled = state.running; // pas de changement de joueur en cours de partie
-    });
+    var u = currentUser();
+    $('who').textContent = u ? u.name : '';
+    $('switch').disabled = state.running; // pas de changement de joueur en cours de partie
     $('giveup').disabled = !state.running;
   }
 
@@ -83,38 +114,48 @@
 
   // Classement : plus de régions trouvées d'abord, puis temps le plus court, puis moins d'erreurs
   function addScore(entry) {
-    var p = state.store.player;
-    var list = state.store.scores[p];
+    var id = state.userId;
+    var list = (state.scores[id] = state.scores[id] || []);
     list.push(entry);
     list.sort(function (a, b) { return foundOf(b) - foundOf(a) || a.time - b.time || a.errors - b.errors; });
     var rank = list.indexOf(entry);
-    state.store.scores[p] = list.slice(0, MAX_SCORES);
-    save();
+    state.scores[id] = list.slice(0, MAX_SCORES);
+    // relire puis réécrire pour ne pas écraser les scores d'un autre onglet
+    getState('regionsScores').then(function (all) {
+      all = all || {};
+      all[id] = state.scores[id];
+      return setState('regionsScores', all);
+    }).catch(function (e) { console.error(e); });
     renderScores();
     return rank;
   }
 
   function renderScores() {
-    PLAYERS.forEach(function (p) {
-      var ol = $('scores-' + p);
-      ol.innerHTML = '';
-      var list = state.store.scores[p];
+    var box = $('score-cols');
+    box.innerHTML = '';
+    var users = state.users.slice().sort(function (a, b) {
+      return (b.id === state.userId) - (a.id === state.userId);
+    });
+    users.forEach(function (u) {
+      var col = document.createElement('div');
+      var h = document.createElement('h3'); h.textContent = u.name;
+      var ol = document.createElement('ol');
+      var list = state.scores[u.id] || [];
       if (!list.length) {
-        var li = document.createElement('li');
-        li.className = 'empty';
-        li.textContent = 'Pas encore de partie';
-        ol.appendChild(li);
-        return;
+        var e = document.createElement('li');
+        e.className = 'empty'; e.textContent = 'Pas encore de partie';
+        ol.appendChild(e);
       }
-      list.forEach(function (s) {
+      list.forEach(function (sc) {
         var li = document.createElement('li');
-        var n = foundOf(s);
+        var n = foundOf(sc);
         li.innerHTML = '<strong></strong> <small></small>';
-        li.firstChild.textContent = n + ' / ' + regions.length + ' régions — ' + fmt(s.time);
-        li.lastChild.textContent = '(' + s.errors + (s.errors > 1 ? ' erreurs)' : ' erreur)');
+        li.firstChild.textContent = n + ' / ' + regions.length + ' régions — ' + fmt(sc.time);
+        li.lastChild.textContent = '(' + sc.errors + (sc.errors > 1 ? ' erreurs)' : ' erreur)');
         if (n === regions.length) li.classList.add('perfect');
         ol.appendChild(li);
       });
+      col.appendChild(h); col.appendChild(ol); box.appendChild(col);
     });
   }
 
@@ -183,9 +224,8 @@
     }
   }
 
-  // Abandon : tout remettre à zéro (sans enregistrer de score) pour pouvoir changer de joueur
-  function giveUp() {
-    if (!state.running) return;
+  // Remet la carte, le chrono et les compteurs à zéro (sans enregistrer de score)
+  function resetBoard() {
     clearInterval(state.ticker);
     state.running = false; state.locked = false;
     state.current = null; state.lastLost = null;
@@ -199,8 +239,14 @@
     $('win-missed').hidden = true;
     $('timer').textContent = '0:00';
     $('start').textContent = 'Commencer';
-    setHint('Choisis ton nom puis appuie sur « Commencer ».');
+    setHint('Appuie sur « Commencer ».');
     renderStatus(); renderPlayers();
+  }
+
+  // Abandon : permet de remettre le temps à zéro et de changer de joueur
+  function giveUp() {
+    if (!state.running) return;
+    resetBoard();
   }
 
   function lose() {
@@ -221,7 +267,7 @@
     regions.forEach(function (r) { buttons[r.id].disabled = true; });
     renderPlayers();
     setHint('C\u2019était : ' + missed.name);
-    $('win-title').textContent = 'Perdu, ' + state.store.player + ' !';
+    $('win-title').textContent = 'Perdu, ' + currentUser().name + ' !';
     $('win-text').textContent = 'Tu as fait 3 erreurs. Tu avais trouvé ' +
       Object.keys(state.found).length + ' région' + (Object.keys(state.found).length > 1 ? 's' : '') +
       ' sur ' + regions.length + ' en ' + fmt(time) + '.' +
@@ -237,7 +283,7 @@
     state.running = false; state.current = null;
     var time = Date.now() - state.startedAt;
     $('timer').textContent = fmt(time);
-    var p = state.store.player;
+    var p = currentUser().name;
     var rank = addScore({ found: regions.length, time: time, errors: state.errors, date: Date.now() });
     renderPlayers();
     setHint('Terminé !');
@@ -250,17 +296,78 @@
     $('win').hidden = false;
   }
 
+  // --- Choix du joueur (mêmes profils que la page de mathématiques) ---
+  function initials(name) {
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (x) { return x[0].toUpperCase(); }).join('');
+  }
+
+  function showLogin(message) {
+    resetBoard();
+    $('game').hidden = true;
+    $('login').hidden = false;
+    $('who-box').hidden = true;
+    $('login-msg').textContent = message || '';
+    var list = $('user-list');
+    list.innerHTML = '';
+    $('user-title').hidden = !state.users.length;
+    $('no-user').hidden = !!state.users.length;
+    state.users.forEach(function (u) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'user-card';
+      b.innerHTML = '<span class="avatar"></span><strong></strong>';
+      b.firstChild.textContent = initials(u.name);
+      b.lastChild.textContent = u.name;
+      b.addEventListener('click', function () { selectUser(u.id); });
+      list.appendChild(b);
+    });
+  }
+
+  function selectUser(id) {
+    state.userId = id;
+    setState('selectedUserId', id).catch(function (e) { console.error(e); });
+    resetBoard();
+    $('login').hidden = true;
+    $('game').hidden = false;
+    $('who-box').hidden = false;
+    renderPlayers(); renderScores();
+  }
+
+  function createUser(ev) {
+    ev.preventDefault();
+    var name = $('new-user').value.trim();
+    if (!name) return showLogin('Écris un prénom avant d\u2019ajouter un joueur.');
+    if (state.users.some(function (u) { return u.name.toLowerCase() === name.toLowerCase(); })) {
+      return showLogin('Ce prénom existe déjà.');
+    }
+    var user = { id: uid('user'), name: name, createdAt: Date.now(), lastSettings: null };
+    // même structure que dans app.js ; lastSettings sera complété par la page de maths
+    (state.db ? req(store('users', 'readwrite').put(user)) : Promise.resolve()).then(function () {
+      state.users.push(user);
+      $('new-user').value = '';
+      selectUser(user.id);
+    }).catch(function (e) { console.error(e); showLogin('Impossible d\u2019enregistrer le joueur.'); });
+  }
+
   // --- Événements ---
   $('start').addEventListener('click', startGame);
   $('giveup').addEventListener('click', giveUp);
   $('again').addEventListener('click', startGame);
-  Array.prototype.forEach.call(document.querySelectorAll('.player'), function (b) {
-    b.addEventListener('click', function () {
-      if (state.running) return;
-      state.store.player = b.getAttribute('data-player');
-      save(); renderPlayers();
-    });
-  });
+  $('switch').addEventListener('click', function () { if (!state.running) showLogin(); });
+  $('create-user').addEventListener('submit', createUser);
 
-  renderPlayers(); renderScores(); renderStatus();
+  var dbWarning = '';
+  openDatabase().catch(function (e) {
+    console.error(e);
+    dbWarning = 'Les profils ne seront pas conservés sur cet appareil (stockage indisponible).';
+    return null;
+  }).then(function (db) {
+    state.db = db;
+    if (!db) return [[], null, null];
+    return Promise.all([req(store('users', 'readonly').getAll()), getState('selectedUserId'), getState('regionsScores')]);
+  }).then(function (r) {
+    state.users = r[0] || [];
+    state.scores = r[2] || {};
+    if (state.users.some(function (u) { return u.id === r[1]; })) selectUser(r[1]);
+    else showLogin(dbWarning);
+  });
 })();
