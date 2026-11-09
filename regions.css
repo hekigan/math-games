@@ -46,6 +46,11 @@ button { font: inherit; cursor: pointer; }
   padding: 12px 24px; border: 0; border-radius: 14px; background: var(--orange);
   color: #fff; font-weight: 700; font-size: 1.05rem; box-shadow: var(--shadow);
 }
+.secondary {
+  padding: 12px 20px; border: 3px solid var(--danger); border-radius: 14px; background: #fff;
+  color: var(--danger); font-weight: 700; font-size: 1.05rem;
+}
+.secondary:disabled { opacity: .4; cursor: default; }
 .primary:hover { filter: brightness(1.05); }
 
 .board { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }

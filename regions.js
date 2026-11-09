@@ -75,6 +75,7 @@
       b.classList.toggle('active', b.getAttribute('data-player') === state.store.player);
       b.disabled = state.running; // pas de changement de joueur en cours de partie
     });
+    $('giveup').disabled = !state.running;
   }
 
   function renderScores() {
@@ -163,6 +164,25 @@
     }
   }
 
+  // Abandon : tout remettre à zéro (sans enregistrer de score) pour pouvoir changer de joueur
+  function giveUp() {
+    if (!state.running) return;
+    clearInterval(state.ticker);
+    state.running = false; state.locked = false;
+    state.current = null; state.lastLost = null;
+    state.found = {}; state.errors = 0; state.queue = [];
+    regions.forEach(function (r) {
+      pathEls[r.id].setAttribute('class', 'region');
+      buttons[r.id].className = 'choice';
+      buttons[r.id].disabled = true;
+    });
+    $('win').hidden = true;
+    $('timer').textContent = '0:00';
+    $('start').textContent = 'Commencer';
+    setHint('Choisis ton nom puis appuie sur « Commencer ».');
+    renderStatus(); renderPlayers();
+  }
+
   function lose() {
     state.lastLost = state.current; // la prochaine partie ne doit pas commencer par cette zone
     pathEls[state.current].classList.remove('active');
@@ -204,6 +224,7 @@
 
   // --- Événements ---
   $('start').addEventListener('click', startGame);
+  $('giveup').addEventListener('click', giveUp);
   $('again').addEventListener('click', startGame);
   Array.prototype.forEach.call(document.querySelectorAll('.player'), function (b) {
     b.addEventListener('click', function () {
