@@ -133,6 +133,7 @@
       buttons[r.id].disabled = false;
     });
     $('win').hidden = true;
+    $('win-missed').hidden = true;
     $('start').textContent = 'Recommencer';
     state.startedAt = Date.now();
     tick();
@@ -177,6 +178,7 @@
       buttons[r.id].disabled = true;
     });
     $('win').hidden = true;
+    $('win-missed').hidden = true;
     $('timer').textContent = '0:00';
     $('start').textContent = 'Commencer';
     setHint('Choisis ton nom puis appuie sur « Commencer ».');
@@ -185,16 +187,20 @@
 
   function lose() {
     state.lastLost = state.current; // la prochaine partie ne doit pas commencer par cette zone
+    var missed = regions.filter(function (r) { return r.id === state.current; })[0];
     pathEls[state.current].classList.remove('active');
+    pathEls[state.current].classList.add('missed'); // reste visible sur la carte
     clearInterval(state.ticker);
     state.running = false;
     regions.forEach(function (r) { buttons[r.id].disabled = true; });
     renderPlayers();
-    setHint('Perdu… 3 erreurs !');
+    setHint('C\u2019était : ' + missed.name);
     $('win-title').textContent = 'Perdu, ' + state.store.player + ' !';
     $('win-text').textContent = 'Tu as fait 3 erreurs. Tu avais trouvé ' +
       Object.keys(state.found).length + ' région' + (Object.keys(state.found).length > 1 ? 's' : '') +
-      ' sur ' + regions.length + '. On recommence à zéro !';
+      ' sur ' + regions.length + '.';
+    $('win-missed').textContent = 'La région à trouver était : ' + missed.name;
+    $('win-missed').hidden = false;
     $('again').textContent = 'Recommencer';
     $('win').hidden = false;
   }
@@ -215,6 +221,7 @@
     renderScores(); renderPlayers();
     setHint('Terminé !');
     $('again').textContent = 'Rejouer';
+    $('win-missed').hidden = true;
     $('win-title').textContent = 'Bravo ' + p + ' !';
     $('win-text').textContent = 'Temps : ' + fmt(time) + ' — ' + state.errors +
       (state.errors > 1 ? ' erreurs' : ' erreur') +

@@ -64,6 +64,10 @@ button { font: inherit; cursor: pointer; }
 .region.active { fill: var(--yellow); stroke: var(--orange); stroke-width: 5; animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { fill: #ffb703; } }
 
+.region.missed { fill: var(--danger); stroke: #9d1c27; stroke-width: 5; }
+.missed-name { font-size: 1.2rem; font-weight: 700; color: var(--danger); background: #ffe9eb; border-radius: 12px; padding: 10px 14px; }
+.missed-name[hidden] { display: none; }
+
 .choices { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .choice {
   padding: 11px 14px; border-radius: 12px; border: 3px solid #fff; background: #fff;
