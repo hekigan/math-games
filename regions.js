@@ -121,6 +121,11 @@
     state.running = true; state.locked = false;
     state.found = {}; state.errors = 0; state.current = null;
     state.queue = shuffle(regions.map(function (r) { return r.id; }));
+    if (state.lastLost && state.queue[0] === state.lastLost) {
+      var k = 1 + Math.floor(Math.random() * (state.queue.length - 1));
+      var t = state.queue[0]; state.queue[0] = state.queue[k]; state.queue[k] = t;
+    }
+    state.lastLost = null;
     regions.forEach(function (r) {
       pathEls[r.id].setAttribute('class', 'region');
       buttons[r.id].className = 'choice';
@@ -159,6 +164,8 @@
   }
 
   function lose() {
+    state.lastLost = state.current; // la prochaine partie ne doit pas commencer par cette zone
+    pathEls[state.current].classList.remove('active');
     clearInterval(state.ticker);
     state.running = false;
     regions.forEach(function (r) { buttons[r.id].disabled = true; });
