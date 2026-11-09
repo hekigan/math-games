@@ -4,6 +4,7 @@
   var PLAYERS = ['Alain', 'Emma'];
   var STORE_KEY = 'mathifun-regions-v1'; // { player, scores: { Alain: [...], Emma: [...] } }
   var MAX_SCORES = 5;
+  var MAX_ERRORS = 3;
   var SVGNS = 'http://www.w3.org/2000/svg';
 
   var regions = window.REGIONS;
@@ -150,10 +151,25 @@
       state.errors++;
       renderStatus();
       btn.classList.add('wrong');
-      setHint('Essaie encore !');
       state.locked = true;
+      if (state.errors >= MAX_ERRORS) return lose(btn);
+      setHint('Essaie encore ! (' + (MAX_ERRORS - state.errors) + (MAX_ERRORS - state.errors > 1 ? ' essais restants)' : ' essai restant)'));
       setTimeout(function () { btn.classList.remove('wrong'); state.locked = false; }, 450);
     }
+  }
+
+  function lose() {
+    clearInterval(state.ticker);
+    state.running = false;
+    regions.forEach(function (r) { buttons[r.id].disabled = true; });
+    renderPlayers();
+    setHint('Perdu… 3 erreurs !');
+    $('win-title').textContent = 'Perdu, ' + state.store.player + ' !';
+    $('win-text').textContent = 'Tu as fait 3 erreurs. Tu avais trouvé ' +
+      Object.keys(state.found).length + ' région' + (Object.keys(state.found).length > 1 ? 's' : '') +
+      ' sur ' + regions.length + '. On recommence à zéro !';
+    $('again').textContent = 'Recommencer';
+    $('win').hidden = false;
   }
 
   function finish() {
@@ -171,6 +187,7 @@
     save();
     renderScores(); renderPlayers();
     setHint('Terminé !');
+    $('again').textContent = 'Rejouer';
     $('win-title').textContent = 'Bravo ' + p + ' !';
     $('win-text').textContent = 'Temps : ' + fmt(time) + ' — ' + state.errors +
       (state.errors > 1 ? ' erreurs' : ' erreur') +
