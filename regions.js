@@ -242,6 +242,8 @@
       var t = state.queue[0]; state.queue[0] = state.queue[k]; state.queue[k] = t;
     }
     state.lastLost = null;
+    // Liste des régions dans un ordre différent à chaque nouvelle partie
+    shuffle(regions.slice()).forEach(function (r) { choicesEl.appendChild(buttons[r.id]); });
     regions.forEach(function (r) {
       pathEls[r.id].setAttribute('class', 'region');
       buttons[r.id].className = 'choice';
